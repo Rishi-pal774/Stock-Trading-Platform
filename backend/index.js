@@ -18,7 +18,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "http://localhost:3001"],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   }),
@@ -198,8 +198,20 @@ app.use(cookieParser());
 // });
 
 app.get("/allHoldings", async (req, res) => {
-  let allHoldings = await HoldingsModel.find({});
-  res.json(allHoldings);
+  try {
+    console.log("allHoldings API called");
+
+    const allHoldings = await HoldingsModel.find({});
+
+    // console.log(allHoldings);
+
+    res.json(allHoldings);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      message: "Error fetching holdings",
+    });
+  }
 });
 
 app.get("/allPositions", async (req, res) => {
@@ -207,24 +219,114 @@ app.get("/allPositions", async (req, res) => {
   res.json(allPositions);
 });
 
-app.post("/newOrder", async (req, res) => {
-  let newOrder = new OrdersModel({
-    name: req.body.name,
-    qty: req.body.qty,
-    price: req.body.price,
-    mode: req.body.mode,
-  });
+// app.post("/newOrder", async (req, res) => {
+//   let newOrder = new OrdersModel({
+//     name: req.body.name,
+//     qty: req.body.qty,
+//     price: req.body.price,
+//     mode: req.body.mode,
+//   });
 
-  newOrder.save();
-  res.send("Order saved!");
+//   newOrder.save();
+//   res.send("Order saved!");
+// });
+
+app.post("/newOrder", async (req, res) => {
+  try {
+    const { name, qty, price, mode } = req.body;
+
+    // Save order history
+    const newOrder = new OrdersModel({
+      name,
+      qty,
+      price,
+      mode,
+    });
+
+    await newOrder.save();
+
+    // Find holding
+    const existingHolding = await HoldingsModel.findOne({ name });
+
+    // BUY logic
+    if (mode === "BUY") {
+      if (existingHolding) {
+        existingHolding.qty += Number(qty);
+        existingHolding.price = Number(price);
+
+        await existingHolding.save();
+      } else {
+        const newHolding = new HoldingsModel({
+          name,
+          qty: Number(qty),
+          avg: Number(price),
+          price: Number(price),
+          net: "0%",
+          day: "0%",
+        });
+
+        await newHolding.save();
+      }
+    }
+
+    // SELL logic
+    else if (mode === "SELL") {
+      if (!existingHolding) {
+        return res.status(400).send("Stock not found");
+      }
+
+      // Cannot sell more than owned
+      if (existingHolding.qty < qty) {
+        return res.status(400).send("Not enough quantity");
+      }
+
+      existingHolding.qty -= Number(qty);
+
+      // Remove holding if qty becomes 0
+      if (existingHolding.qty === 0) {
+        await HoldingsModel.deleteOne({ name });
+      } else {
+        await existingHolding.save();
+      }
+    }
+
+    res.send("Order processed successfully");
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+app.get("/allOrders", async (req, res) => {
+  try {
+    const allOrders = await OrdersModel.find({});
+
+    res.json(allOrders);
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      message: "Error fetching orders",
+    });
+  }
 });
 
 app.use("/", authRoute);
 
-app.listen(PORT, () => {
-  console.log("App started");
-  mongoose
-    .connect(uri)
-    .then(() => console.log("DB Connected"))
-    .catch((err) => console.log(err));
-});
+// app.listen(PORT, () => {
+//   console.log("App started");
+//   mongoose
+//     .connect(uri)
+//     .then(() => console.log("DB Connected"))
+//     .catch((err) => console.log(err));
+// });
+mongoose
+  .connect(uri)
+  .then(() => {
+    console.log("DB Connected");
+
+    app.listen(PORT, () => {
+      console.log(`Server running on ${PORT}`);
+    });
+  })
+  .catch((err) => console.log(err));
