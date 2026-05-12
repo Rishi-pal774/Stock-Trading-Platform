@@ -11,16 +11,36 @@ const BuyActionWindow = ({ uid }) => {
   const [stockQuantity, setStockQuantity] = useState(1);
   const [stockPrice, setStockPrice] = useState(0.0);
 
-  const handleBuyClick = () => {
-    axios.post("http://localhost:3002/newOrder", {
-      name: uid,
-      qty: stockQuantity,
-      price: stockPrice,
-      mode: "BUY",
-    });
+  // const handleBuyClick = () => {
+  //   axios.post("http://localhost:3002/newOrder", {
+  //     name: uid,
+  //     qty: stockQuantity,
+  //     price: stockPrice,
+  //     mode: "BUY",
+  //   });
 
-    GeneralContext.closeBuyWindow();
-  };
+  //   GeneralContext.closeBuyWindow();
+  // };
+
+  const handleBuyClick = async () => {
+  try {
+    const res = await axios.post(
+      "http://localhost:3002/newOrder",
+      {
+        name: uid,
+        qty: stockQuantity,
+        price: stockPrice,
+        mode: "BUY",
+      }
+    );
+
+    console.log(res.data);
+
+    window.location.reload();
+  } catch (err) {
+    console.log(err);
+  }
+};
 
   const handleCancelClick = () => {
     GeneralContext.closeBuyWindow();
@@ -36,7 +56,7 @@ const BuyActionWindow = ({ uid }) => {
               type="number"
               name="qty"
               id="qty"
-              onChange={(e) => setStockQuantity(e.target.value)}
+              onChange={(e) => setStockQuantity(Number(e.target.value))}
               value={stockQuantity}
             />
           </fieldset>
@@ -47,7 +67,7 @@ const BuyActionWindow = ({ uid }) => {
               name="price"
               id="price"
               step="0.05"
-              onChange={(e) => setStockPrice(e.target.value)}
+              onChange={(e) => setStockPrice(Number(e.target.value))}
               value={stockPrice}
             />
           </fieldset>
